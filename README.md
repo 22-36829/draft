@@ -1,252 +1,121 @@
-# 📊 Complete Forecasting System Overview
+# 📊 Forecasting System Overview 
 
 ## 🏗️ System Architecture
 
-### Backend Components
-- **Flask API Server** (`backend/app.py`)
-- **Forecasting Service** (`backend/forecasting_service.py`)
-- **Database** (PostgreSQL with historical sales data)
-- **Authentication** (JWT-based)
+### Backend
+- **Flask API** (`backend/app.py`) with JWT auth (24h expiry) and 401 handling
+- **Forecasting core** (`backend/forecasting_service.py`) using SARIMAX + ensemble
+- **PostgreSQL** for historical data, trained models, accuracy history
 
-### Frontend Components
-- **React Dashboard** (`frontend/src/pages/manager/Forecasting.js`)
-- **Chart.js Integration** (Interactive charts)
-- **Real-time Updates** (Auto-refresh functionality)
-
----
-
-## 🔄 Complete Forecasting Flow
-
-### 1. **Data Collection & Preparation**
-```
-Historical Sales Data → Database → Data Preprocessing → Model Training
-```
-
-**Data Sources:**
-- `historical_sales_daily` table
-- Product information (prices, costs, categories)
-- Daily sales quantities and revenue
-
-**Data Processing:**
-- Outlier detection and smoothing
-- Missing data handling
-- Time series validation
-- Feature engineering
-
-### 2. **Model Training Process**
-```
-Raw Data → SARIMAX Model → Parameter Optimization → Model Validation → Storage
-```
-
-**Algorithm Used:**
-- **SARIMAX** (Seasonal AutoRegressive Integrated Moving Average with eXogenous variables)
-- **Ensemble Methods** (Multiple model combinations)
-- **Walk-forward Validation** (Time series cross-validation)
-
-**Model Parameters:**
-- Order: (p, d, q) = (2, 1, 1)
-- Seasonal: (P, D, Q, s) = (1, 1, 1, 7)
-- AIC optimization for best parameters
-
-### 3. **Prediction Generation**
-```
-Trained Model → Historical Data → Forecast Generation → Confidence Intervals
-```
-
-**Output:**
-- Future sales predictions (1-365 days)
-- Confidence intervals (upper/lower bounds)
-- Accuracy metrics (MAE, RMSE, Accuracy %)
+### Frontend
+- **React** (`frontend/src/pages/manager/Forecasting.js`)
+- **Chart.js + chartjs-plugin-zoom** for interactive charts
+- **Light-only theme** (dark mode removed)
 
 ---
 
-## 🎯 Key Features & Components
+## 🔄 End-to-end Flow
 
-### **1. Product Selection & Filtering**
-- **Search Functionality**: Find products by name or generic name
-- **Sorting Options**: By name, sales volume, revenue, profit, accuracy
-- **Pagination**: 12 products per page with navigation
-- **Real-time Filtering**: Instant search results
-
-### **2. Timeframe Analysis**
-- **Multiple Timeframes**: 1H, 4H, 1D, 7D, 1M, 3M, 1Y
-- **Dynamic Calculations**: Revenue and profit scale with timeframe
-- **Context-aware Analysis**: Different insights for each timeframe
-
-### **3. Interactive Charts**
-- **Main Forecast Chart**: Sales predictions with confidence intervals
-- **Volume Chart**: Sales volume over time
-- **Technical Indicators**: RSI, MACD analysis
-- **Zoom & Pan**: Interactive chart navigation
-- **Fullscreen Mode**: Detailed chart analysis
-
-### **4. Technical Analysis**
-- **Volume Analysis**: Sales volume trends and patterns
-- **RSI (Relative Strength Index)**: Momentum indicator (0-100)
-- **MACD (Moving Average Convergence Divergence)**: Trend following indicator
-- **Combined Analysis**: Overall technical assessment
-
-### **5. Chart Analyzer (AI-Powered)**
-- **Current Chart Condition**: Real-time analysis of selected product
-- **Profit/Loss Analysis**: Revenue and profit calculations
-- **Demand Level Assessment**: High/Medium/Low demand classification
-- **Strategy Recommendations**: Actionable business insights
-- **Immediate Action Items**: Specific tasks based on analysis
-
-### **6. Category Analysis**
-- **Most Profitable Categories**: Top 6 categories by daily profit
-- **Most In-Demand Categories**: Top 6 categories by sales volume
-- **Top 3 Products per Category**: Best performing products in each category
-- **Performance Metrics**: Sales, profit, and margin analysis
-
-### **7. Auto-Forecasting**
-- **Automatic Updates**: Configurable intervals (30s, 1m, 5m, 10m)
-- **Real-time Monitoring**: Continuous model performance tracking
-- **Smart Retraining**: Automatic model updates based on performance
-- **Background Processing**: Non-intrusive updates
-
-### **8. Model Management**
-- **Model Storage**: Trained models stored in database
-- **Accuracy Tracking**: Performance metrics for each model
-- **Auto-retraining**: Models update based on new data
-- **Model Comparison**: Multiple models for different products
-
----
-
-## 📈 Data Flow Diagram
-
+### 1) Data → Clean series
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Historical    │    │   Forecasting    │    │   React         │
-│   Sales Data    │───▶│   Service        │───▶│   Dashboard     │
-│   (Database)    │    │   (SARIMAX)      │    │   (Charts)      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Data          │    │   Model          │    │   User          │
-│   Preprocessing │    │   Training       │    │   Interaction   │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Clean Data    │    │   Predictions    │    │   Analysis      │
-│   (Time Series) │    │   & Accuracy     │    │   & Insights    │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+historical_sales_daily → join product prices/costs → fill missing days →
+outlier clipping (IQR) → smoothing (rolling) → stationarity check
+```
+
+### 2) Training → Model store
+```
+best SARIMAX params (proven combos + validation) →
+fit model → walk-forward metrics (MAE, RMSE, true Accuracy%) →
+save into forecasting_models + accuracy history
+```
+
+### 3) Forecasts → UI
+```
+load historical → fit best params → ensemble predict (with CI) →
+serve via API → render in main chart + analyzer
 ```
 
 ---
 
-## 🔧 Technical Implementation
-
-### **Backend APIs**
-- `GET /api/forecasting/predictions` - Generate forecasts
-- `GET /api/forecasting/models` - Get trained models
-- `GET /api/forecasting/accuracy` - Get accuracy metrics
-- `POST /api/forecasting/train` - Train new models
-- `GET /api/forecasting/products` - Get forecastable products
-
-### **Frontend State Management**
-- **Product Data**: Products, categories, models
-- **UI State**: Selected targets, timeframes, filters
-- **Chart Data**: Historical data, forecasts, technical indicators
-- **Analysis Data**: Chart analyzer results, recommendations
-
-### **Real-time Features**
-- **Auto-refresh**: Configurable intervals
-- **Live Updates**: Chart data updates automatically
-- **Performance Monitoring**: Continuous accuracy tracking
-- **Smart Notifications**: Alerts for significant changes
+## 🔧 APIs (key)
+- `GET /api/forecasting/predictions` — forecasts for a target (returns values, dates, CI, accuracy)
+- `GET /api/forecasting/models` — trained models list (fixed to query DB)
+- 401 handling: frontend clears token and redirects to `/login` on expired/invalid JWT
 
 ---
 
-## 🎯 Business Value
-
-### **For Pharmacy Management**
-- **Inventory Optimization**: Predict demand to avoid stockouts
-- **Revenue Forecasting**: Plan for future sales and profits
-- **Cost Management**: Optimize purchasing and pricing
-- **Performance Tracking**: Monitor product and category performance
-
-### **For Decision Making**
-- **Data-driven Insights**: Based on historical patterns
-- **Risk Assessment**: Identify potential issues early
-- **Opportunity Identification**: Find high-performing products
-- **Strategic Planning**: Long-term business planning support
-
-### **For Operations**
-- **Automated Forecasting**: Reduces manual work
-- **Real-time Monitoring**: Immediate insights
-- **Scalable System**: Handles multiple products and categories
-- **User-friendly Interface**: Easy to use for non-technical users
+## 🎛️ UI/UX Changes and Behavior
+- **Light-only theme**: removed dark theme and toggle; unified colors for readability
+- **Separate containers** for Forecast and Volume charts; aligned sizing; no extra right spacing
+- **Volume chart**: fixed visibility, correct alignment, subtle grid; independent small bar chart
+- **Technical analysis section**: reduced spacing; non-overlapping RSI and MACD panels
+- **Date labels**: show only dates (no "China Standard Time"); tooltips and ticks use local date formatting
+- **Zoom**: drag-to-zoom enabled; wheel/pinch disabled; zoom persists until user clicks Reset (outside fullscreen)
+- **Fullscreen**: added for forecast chart; reset button removed inside fullscreen modal; ESC closes
+- **Pagination**: product list with First/Prev/Next/Last; resets to page 1 on filter changes
+- **Redundant buttons removed**: non-functional analysis tabs/category filters deleted
+- **Consistent icons**: dashboard/sections use unified bar chart icon where applicable
 
 ---
 
-## 🚀 Advanced Features
+## 📈 Charts & Indicators
+- **Main Forecast chart**: historical sales, SMA trend, revenue/profit overlays, dashed forecast, CI-aware
+- **Volume chart**: compact bar chart below main chart (aligned X-axis)
+- **RSI & MACD**: dedicated panels with guides (RSI 70/30 bands, MACD zero line)
 
-### **1. Ensemble Modeling**
-- Multiple SARIMAX models with different parameters
-- Weighted predictions based on performance
-- Improved accuracy through model combination
+---
 
-### **2. Walk-forward Validation**
-- Time series cross-validation
-- Realistic accuracy assessment
-- Prevents overfitting
-
-### **3. Technical Indicators**
-- RSI for momentum analysis
-- MACD for trend identification
-- Volume analysis for demand assessment
-
-### **4. Smart Recommendations**
-- AI-powered business insights
-- Actionable strategies
-- Risk alerts and opportunities
-
-### **5. Performance Monitoring**
-- Real-time accuracy tracking
-- Model performance comparison
-- Automatic retraining triggers
+## 🧠 Chart Analyzer (for non-technical users)
+- Uses current chart target and selected timeframe
+- Explains: current condition, demand level, profit margin, forecast reliability
+- Timeframe-aware revenue/profit math using real `avg_daily_sales`, `unit_price`, `cost_price`
+- Adds explanations for **Volume**, **RSI**, **MACD** and a combined summary
+- Outputs recommendations and immediate action items; updates when timeframe changes
 
 ---
 
 ## 📊 Accuracy & Reliability
-
-### **Model Performance**
-- **Average Accuracy**: 92.05%
-- **Range**: 89.50% - 93.42%
-- **Data Points**: 366 days per product
-- **Validation**: Walk-forward cross-validation
-
-### **Reliability Metrics**
-- **High Accuracy (≥80%)**: 100% of products
-- **Sufficient Data (≥100 points)**: 100% of products
-- **Stable Data (CV≤0.5)**: 100% of products
-
-### **Production Ready**
-- ✅ **Reliable**: Consistent high accuracy
-- ✅ **Scalable**: Handles multiple products
-- ✅ **Maintainable**: Auto-retraining and monitoring
-- ✅ **User-friendly**: Intuitive interface
+- Removed any artificial boosting/capping; reports true accuracy
+- Accuracy computed via walk-forward validation; smoothed, but not inflated
+- Backend fix: `/api/forecasting/models` now returns real DB rows, eliminating "Models: 0" issue
 
 ---
 
-## 🔮 Future Enhancements
-
-### **Planned Features**
-- **Machine Learning Models**: LSTM, Prophet integration
-- **External Data**: Weather, events, market data
-- **Advanced Analytics**: Customer behavior analysis
-- **Mobile App**: iOS/Android applications
-- **API Integration**: Third-party system connections
-
-### **Performance Improvements**
-- **Faster Training**: GPU acceleration
-- **Real-time Processing**: Stream processing
-- **Advanced Preprocessing**: Feature engineering
-- **Model Optimization**: Hyperparameter tuning
+## 🔐 Auth & Resilience
+- JWT lifetime extended to 24h
+- Frontend auto-logout on 401 (expired/invalid token)
 
 ---
 
-This forecasting system provides a comprehensive, production-ready solution for pharmacy inventory management with high accuracy, real-time capabilities, and user-friendly interfaces.
+## 🔎 Feature Checklist
+- **Forecasting**: SARIMAX + ensemble, confidence intervals, timeframe-aware views
+- **Analyzer**: human-friendly insights with Volume/RSI/MACD explanations
+- **Charts**: separated forecast/volume, fullscreen, persistent drag-zoom
+- **UI**: light-only theme, spacing/alignment fixes, cleaned analysis filters
+- **Pagination**: first/last page controls; client-side search/sort
+- **APIs**: predictions/models working; accuracy sourced from trained models
+
+---
+
+## 📐 Data Flow (high level)
+```
+DB (historical + product) ─▶ preprocessing ─▶ param search + fit ─▶
+accuracy (walk-forward) ─▶ model store ─▶ predict (ensemble) ─▶ UI charts + analyzer
+```
+
+---
+
+## 🗺️ What changed since the previous summary
+- Dark theme removed; standardized light theme
+- Models endpoint fixed to return real data
+- Volume chart visibility/overlap resolved; separate containers and sizing
+- Extra line removed; grid/ticks tuned; right padding normalized
+- Date labels cleaned (no time zone suffix); tooltips show dates only
+- Fullscreen added; reset removed in fullscreen; ESC to close
+- Drag-zoom persists until explicit reset (outside fullscreen)
+- Analyzer enhanced with Volume/RSI/MACD explanations and timeframe-aware math
+- Product list pagination improved with first/last controls; redundant tabs/filters removed
+
+---
+
+This revised overview reflects the light-only UI, fixed APIs, true accuracy reporting, improved charting layout, persistent zoom behavior, enriched analyzer, and streamlined filtering/pagination.
