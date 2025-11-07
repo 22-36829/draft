@@ -1,121 +1,115 @@
-# 📊 Forecasting System Overview 
+## Role and Access Overview (for DFD)
 
-## 🏗️ System Architecture
+### Roles
 
-### Backend
-- **Flask API** (`backend/app.py`) with JWT auth (24h expiry) and 401 handling
-- **Forecasting core** (`backend/forecasting_service.py`) using SARIMAX + ensemble
-- **PostgreSQL** for historical data, trained models, accuracy history
+- **Admin**: Platform administration across all pharmacies; manages users, subscriptions, announcements; full Admin portal access.
+- **Manager**: Manages a single pharmacy; can manage staff, inventory, POS, forecasting, reports, announcements, support.
+- **Staff**: Operates in a single pharmacy; POS, inventory requests, own sales, waste & expiry, AI assistant.
 
-### Frontend
-- **React** (`frontend/src/pages/manager/Forecasting.js`)
-- **Chart.js + chartjs-plugin-zoom** for interactive charts
-- **Light-only theme** (dark mode removed)
+### Role Responsibilities (what each role does)
 
----
+- **Admin**
+  - Create, activate/deactivate, and assign roles to user accounts across pharmacies
+  - Manage pharmacy profiles and subscription lifecycle (plan, status, payments)
+  - Publish platform announcements and review platform-level dashboards/metrics
 
-## 🔄 End-to-end Flow
+- **Manager**
+  - Create and manage staff accounts within their pharmacy
+  - Oversee inventory (stock updates, approvals), run POS operations, and reconcile sales
+  - Generate and review reports (sales, period, detailed), use forecasting to plan stock
+  - Handle pharmacy announcements and support tickets
 
-### 1) Data → Clean series
-```
-historical_sales_daily → join product prices/costs → fill missing days →
-outlier clipping (IQR) → smoothing (rolling) → stationarity check
-```
+- **Staff**
+  - Operate POS to record sales and issue receipts
+  - Submit inventory adjustment requests (e.g., corrections, shrinkage, waste/expiry)
+  - Review own sales history and contribute operational data to reports/forecasts
+  - Use the AI assistant for recommendations/information
 
-### 2) Training → Model store
-```
-best SARIMAX params (proven combos + validation) →
-fit model → walk-forward metrics (MAE, RMSE, true Accuracy%) →
-save into forecasting_models + accuracy history
-```
+### Role–System Interactions (how each role uses the system)
 
-### 3) Forecasts → UI
-```
-load historical → fit best params → ensemble predict (with CI) →
-serve via API → render in main chart + analyzer
-```
+- **Admin → System**
+  - Authenticates and obtains a session token
+  - Accesses Admin portal to:
+    - Manage Users: create/update users, set role, (cross-pharmacy) → updates Users data store
+    - Manage Subscriptions: plans, status, payments → updates Subscriptions/Pharmacies data stores
+    - Announcements: create/publish → updates Announcements data store, notifies clients
+  - Views platform metrics → aggregated reads across Users/Pharmacies/Sales
 
----
+- **Manager → System**
+  - Authenticates and obtains a session token scoped to their pharmacy
+  - Staff Management: create/list/update/deactivate staff → updates Users (within pharmacy)
+  - Inventory: create/approve adjustments; view stock/low stock → reads/writes Inventory and Products
+  - POS: conduct transactions → writes Sales, updates Inventory
+  - Forecasting: request forecasts for products/categories → reads historical Sales, loads model files, returns forecast series
+  - Reporting: run date/period/detailed reports → reads Sales/Products with pharmacy scope
+  - Announcements & Support: create/read → writes/reads Announcements and Tickets
 
-## 🔧 APIs (key)
-- `GET /api/forecasting/predictions` — forecasts for a target (returns values, dates, CI, accuracy)
-- `GET /api/forecasting/models` — trained models list (fixed to query DB)
-- 401 handling: frontend clears token and redirects to `/login` on expired/invalid JWT
+- **Staff → System**
+  - Authenticates and obtains a session token scoped to their pharmacy
+  - POS Operations: record sales → writes Sales; triggers inventory decrements
+  - Inventory Requests: submit adjustments for approval → writes Adjustment Requests pending manager review
+  - Own Sales & Waste/Expiry: view/history submission → reads Sales; writes Waste/Expiry records if applicable
+  - AI Assistant: request recommendations/info → reads supported knowledge/services; returns guidance
 
----
+### Where access is enforced (conceptual, no code)
 
-## 🎛️ UI/UX Changes and Behavior
-- **Light-only theme**: removed dark theme and toggle; unified colors for readability
-- **Separate containers** for Forecast and Volume charts; aligned sizing; no extra right spacing
-- **Volume chart**: fixed visibility, correct alignment, subtle grid; independent small bar chart
-- **Technical analysis section**: reduced spacing; non-overlapping RSI and MACD panels
-- **Date labels**: show only dates (no "China Standard Time"); tooltips and ticks use local date formatting
-- **Zoom**: drag-to-zoom enabled; wheel/pinch disabled; zoom persists until user clicks Reset (outside fullscreen)
-- **Fullscreen**: added for forecast chart; reset button removed inside fullscreen modal; ESC closes
-- **Pagination**: product list with First/Prev/Next/Last; resets to page 1 on filter changes
-- **Redundant buttons removed**: non-functional analysis tabs/category filters deleted
-- **Consistent icons**: dashboard/sections use unified bar chart icon where applicable
+- Client application shows only the sections allowed by the user’s role
+- Server validates the user’s role and pharmacy scope on every protected request
+- Data operations are constrained by `role` and `pharmacy_id` to prevent cross-tenant access
 
----
+### Data flow touchpoints (for DFD diagrams)
 
-## 📈 Charts & Indicators
-- **Main Forecast chart**: historical sales, SMA trend, revenue/profit overlays, dashed forecast, CI-aware
-- **Volume chart**: compact bar chart below main chart (aligned X-axis)
-- **RSI & MACD**: dedicated panels with guides (RSI 70/30 bands, MACD zero line)
+- External Entities: Admin, Manager, Staff (browsers)
+- Processes: Auth, Admin Services, Manager Services, Staff Services, Forecasting Service
+- Data Stores: Users, Pharmacies, Products, Inventory, Sales, Subscriptions, Announcements, Tickets, Model Files
+- Flows:
+  - Credentials → Auth → Session Token
+  - Role-scoped requests → Services → Reads/Writes to data stores
+  - Forecast requests → Forecasting Service → Model Files + Sales history → Forecast output to client
 
----
+### Where access is enforced
 
-## 🧠 Chart Analyzer (for non-technical users)
-- Uses current chart target and selected timeframe
-- Explains: current condition, demand level, profit margin, forecast reliability
-- Timeframe-aware revenue/profit math using real `avg_daily_sales`, `unit_price`, `cost_price`
-- Adds explanations for **Volume**, **RSI**, **MACD** and a combined summary
-- Outputs recommendations and immediate action items; updates when timeframe changes
+- **Frontend route gating**: `RequireAuth` only renders routes if `user.role` is allowed.
 
----
-
-## 📊 Accuracy & Reliability
-- Removed any artificial boosting/capping; reports true accuracy
-- Accuracy computed via walk-forward validation; smoothed, but not inflated
-- Backend fix: `/api/forecasting/models` now returns real DB rows, eliminating "Models: 0" issue
-
----
-
-## 🔐 Auth & Resilience
-- JWT lifetime extended to 24h
-- Frontend auto-logout on 401 (expired/invalid token)
-
----
-
-## 🔎 Feature Checklist
-- **Forecasting**: SARIMAX + ensemble, confidence intervals, timeframe-aware views
-- **Analyzer**: human-friendly insights with Volume/RSI/MACD explanations
-- **Charts**: separated forecast/volume, fullscreen, persistent drag-zoom
-- **UI**: light-only theme, spacing/alignment fixes, cleaned analysis filters
-- **Pagination**: first/last page controls; client-side search/sort
-- **APIs**: predictions/models working; accuracy sourced from trained models
-
----
-
-## 📐 Data Flow (high level)
-```
-DB (historical + product) ─▶ preprocessing ─▶ param search + fit ─▶
-accuracy (walk-forward) ─▶ model store ─▶ predict (ensemble) ─▶ UI charts + analyzer
+```text
+frontend/src/App.js
+- If not authenticated → Login
+- If role not in allowed list → LandingPage
 ```
 
----
+- **Backend authorization (source of truth)**:
+  - Admin-only helpers: `_require_admin(...)` (abort 403 if not admin)
+  - Manager/Admin checks: `require_manager_or_admin(...)` (abort 403 if not manager/admin)
 
-## 🗺️ What changed since the previous summary
-- Dark theme removed; standardized light theme
-- Models endpoint fixed to return real data
-- Volume chart visibility/overlap resolved; separate containers and sizing
-- Extra line removed; grid/ticks tuned; right padding normalized
-- Date labels cleaned (no time zone suffix); tooltips show dates only
-- Fullscreen added; reset removed in fullscreen; ESC to close
-- Drag-zoom persists until explicit reset (outside fullscreen)
-- Analyzer enhanced with Volume/RSI/MACD explanations and timeframe-aware math
-- Product list pagination improved with first/last controls; redundant tabs/filters removed
+```text
+backend/routes/admin.py → _require_admin
+backend/utils/helpers.py → require_manager_or_admin
+```
 
----
+- **Authentication**:
+  - JWT issued at login; `/api/auth/me` returns `id, email, role, pharmacy_id` for RBAC and scoping.
 
-This revised overview reflects the light-only UI, fixed APIs, true accuracy reporting, improved charting layout, persistent zoom behavior, enriched analyzer, and streamlined filtering/pagination.
+### High-level DFD (Context)
+
+- **External Entities**: Admin, Manager, Staff (web clients)
+- **Processes**:
+  - Auth Service (login, token, /me)
+  - Admin Service (users, subscriptions, announcements)
+  - Manager Service (staff, inventory, POS, forecasting, reports, announcements, support)
+  - Staff Service (POS, inventory requests, own sales, waste & expiry)
+  - Forecasting Service (model training/serving)
+- **Data Stores**:
+  - PostgreSQL (users with `role` and `pharmacy_id`, products, sales, subscriptions, tickets, etc.)
+  - Model files under `backend/ai_models/` (saved forecasting models)
+- **Data Flows**:
+  - Client → Backend: credentials → JWT; subsequent API calls with JWT
+  - Backend → DB: CRUD, reporting queries, sales reads
+  - Backend → Forecasting: load best model, compute predictions → JSON to client
+
+### Why this works (security & correctness)
+
+- **Defense in depth**: Frontend hides unauthorized UI; backend enforces final authorization via RBAC helpers and JWT on protected endpoints.
+- **Tenant scoping**: Most manager/staff actions validate `pharmacy_id` to prevent cross-tenant access.
+- **Explicit roles**: `admin`, `manager`, `staff` are validated on user creation and used consistently across UI and API.
+
+This section summarizes role behavior and flows so you can quickly build DFD diagrams without digging through code.
